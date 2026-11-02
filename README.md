@@ -1,7 +1,7 @@
 # uptriva
 
 A command-line client for the [Uptriva](https://uptriva.com) monitoring API.
-Create monitors, check incidents and manage status pages without opening a browser.
+Manage monitors, incidents, contacts and status pages without opening a browser.
 
 ## Install
 
@@ -14,32 +14,55 @@ Or grab a binary from the [releases](https://github.com/uptriva/cli/releases) pa
 ## Getting started
 
 ```sh
-uptriva auth login --token uk_your_token
+uptriva auth login
 ```
 
-Tokens are created in the dashboard under Security → API tokens. Scoped tokens
-(`monitors:write`, `incidents:read`, page-restricted) work too — the API enforces
-them server-side, so a read-only key can't accidentally write anything.
+It prompts for your token — no secrets in your shell history. Tokens come from
+the dashboard under Security → API tokens. Scoped tokens (`monitors:write`,
+page-restricted) work as you'd expect; the API enforces them server-side.
 
-`UPTRIVA_TOKEN` and `UPTRIVA_API_URL` environment variables are also honoured.
+`UPTRIVA_TOKEN` and `UPTRIVA_API_URL` also work if you'd rather not store a config.
 
 ## Commands
 
 ```
-uptriva auth login --token <token>     store your API token
-uptriva auth logout                    remove it
-uptriva monitors list                  list monitors, table output
-uptriva monitors list -o json          same, machine-readable
-uptriva monitors list --status-page <id>
+uptriva monitors list                      monitors as a table
+uptriva monitors list --status up --type http
+uptriva monitors create --type http --target https://example.com --status-page <id>
+uptriva monitors show Website              details — accepts name or id
+uptriva monitors pause|resume|delete Website
+uptriva monitors update Website --interval 60
+
+uptriva watch                              live status view, refreshes every 10s
+uptriva heartbeat "Pinger Falkenstein"     push a heartbeat ping
+
+uptriva status-pages list|show|create|delete
+uptriva incidents list|create|ack|resolve|update|publish
+uptriva maintenance list|create|delete
+uptriva contacts list|create|delete        email, slack, telegram, sms
+uptriva webhooks list|create|delete|test
+uptriva groups list|create|delete
+uptriva oncall list                        escalation policies
+uptriva members list|invite
+
+uptriva agents                             fleet status
+uptriva agents enroll-token --name ci      enrollment tokens
+uptriva agent-events acknowledge|resolve|reopen <id>
+
+uptriva sla get|targets                    SLA stats
+uptriva overview                           account overview
+uptriva tier-info                          your plan and limits
+uptriva subscribers, uptriva audit-logs
+uptriva auth whoami, uptriva auth logout
 ```
 
-More subcommands land as the API grows. `-o json` works everywhere and pipes
-straight into `jq`.
+Most commands that take an id also take a name — `uptriva monitors pause Website`
+works the same as the UUID. `-o json` works everywhere and pipes into `jq`.
 
 ## Config
 
-Stored at `~/.config/uptriva/config.yaml` (0600). Only the token and the API
-base URL live there — nothing else leaves your machine.
+Stored at `~/.config/uptriva/config.yaml` (0600). Token and API base URL only —
+nothing else leaves your machine.
 
 ## Development
 
@@ -48,7 +71,7 @@ go build ./cmd/uptriva
 go test ./...
 ```
 
-Releases are cut with GoReleaser on `v*` tags via GitHub Actions.
+Releases build with GoReleaser on `v*` tags via GitHub Actions.
 
 ## License
 

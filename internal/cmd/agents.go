@@ -51,6 +51,26 @@ func agentsCmd() *cobra.Command {
 			return w.Flush()
 		},
 	}
+	var etName string
+	enroll := &cobra.Command{
+		Use:   "enroll-token",
+		Short: "Create an agent enrollment token",
+		RunE: func(c *cobra.Command, args []string) error {
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			var resp any
+			if err := cl.Post("/agents/enroll-tokens", map[string]any{"name": etName}, &resp); err != nil {
+				return err
+			}
+			b, _ := json.MarshalIndent(resp, "", "  ")
+			fmt.Println(string(b))
+			return nil
+		},
+	}
+	enroll.Flags().StringVar(&etName, "name", "", "token name")
+	c.AddCommand(enroll)
 	return c
 }
 

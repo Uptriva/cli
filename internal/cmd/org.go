@@ -160,7 +160,19 @@ func maintenanceCmd() *cobra.Command {
 	create.Flags().StringVar(&mStart, "start", "", "start time (RFC3339)")
 	create.Flags().StringVar(&mEnd, "end", "", "end time (RFC3339)")
 	create.Flags().StringVar(&pageID, "status-page", "", "status page id")
-	c.AddCommand(list, create)
+	delM := &cobra.Command{
+		Use:   "delete <id>",
+		Short: "Delete a maintenance window",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			return cl.Delete("/maintenance/" + args[0])
+		},
+	}
+	c.AddCommand(list, create, delM)
 	return c
 }
 
@@ -204,7 +216,19 @@ func groupsCmd() *cobra.Command {
 	}
 	create.Flags().StringVar(&gName, "name", "", "group name")
 	create.Flags().StringVar(&pageID, "status-page", "", "status page id")
-	c.AddCommand(list, create)
+	delG := &cobra.Command{
+		Use:   "delete <id>",
+		Short: "Delete a group",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			return cl.Delete("/groups/" + args[0])
+		},
+	}
+	c.AddCommand(list, create, delG)
 	return c
 }
 

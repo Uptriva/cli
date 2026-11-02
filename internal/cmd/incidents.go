@@ -97,6 +97,28 @@ func incidentsCmd() *cobra.Command {
 	create.Flags().StringVar(&iTitle, "title", "", "incident title")
 	create.Flags().StringVar(&iSeverity, "severity", "minor", "severity (minor, major, critical)")
 	create.Flags().StringVar(&iPage, "status-page", "", "status page id")
-	c.AddCommand(list, create, act("ack"), act("resolve"))
+	var uMsg string
+	post := &cobra.Command{
+		Use:   "update <id>",
+		Short: "Post an update to an incident",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			if uMsg == "" {
+				return fmt.Errorf("--message is required")
+			}
+			var resp any
+			if err := cl.Post("/incidents/"+args[0]+"/updates", map[string]any{"message": uMsg}, &resp); err != nil {
+				return err
+			}
+			fmt.Println("Update posted.")
+			return nil
+		},
+	}
+	post.Flags().StringVar(&uMsg, "message", "", "update message")
+	c.AddCommand(list, create, post, act("ack"), act("resolve"), act("publish"), act("unpublish"))
 	return c
 }
