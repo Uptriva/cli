@@ -60,7 +60,11 @@ func authCmd() *cobra.Command {
 				fmt.Println("not authenticated")
 				return nil
 			}
-			fmt.Printf("endpoint: %s\ntoken: %s...%s\n", cfg.BaseURL, cfg.Token[:8], cfg.Token[len(cfg.Token)-4:])
+			masked := cfg.Token
+			if len(masked) > 12 {
+				masked = masked[:8] + "..." + masked[len(masked)-4:]
+			}
+			fmt.Printf("endpoint: %s\ntoken: %s\n", cfg.BaseURL, masked)
 			return nil
 		},
 	}

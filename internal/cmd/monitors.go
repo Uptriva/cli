@@ -171,10 +171,11 @@ func monitorsCmd() *cobra.Command {
 	create.Flags().StringVar(&mName, "name", "", "monitor name")
 	create.Flags().IntVar(&mInterval, "interval", 0, "check interval in seconds")
 	create.Flags().StringVar(&pageID, "status-page", "", "status page id")
+	past := map[string]string{"pause": "Paused", "resume": "Resumed", "delete": "Deleted"}
 	action := func(verb, method, suffix string) *cobra.Command {
 		return &cobra.Command{
 			Use:     verb + " <id|name>",
-			Short:   strings.Title(verb) + " a monitor",
+			Short:   past[verb] + " a monitor",
 			Args:    cobra.ExactArgs(1),
 			Example: "  uptriva monitors " + verb + " Website",
 			RunE: func(c *cobra.Command, args []string) error {
@@ -190,7 +191,7 @@ func monitorsCmd() *cobra.Command {
 					if err := cl.Delete("/monitors/" + m.ID + suffix); err != nil {
 						return err
 					}
-					fmt.Printf("Deleted monitor %q\n", m.Name)
+					fmt.Printf("%s monitor %q\n", past[verb], m.Name)
 					return nil
 				}
 				status := "pending"
@@ -201,7 +202,7 @@ func monitorsCmd() *cobra.Command {
 				if err := cl.Put("/monitors/"+m.ID, map[string]string{"status": status}, &resp); err != nil {
 					return err
 				}
-				fmt.Printf("%s %q\n", strings.Title(verb)+"ed monitor", m.Name)
+				fmt.Printf("%s monitor %q\n", past[verb], m.Name)
 				return nil
 			},
 		}
