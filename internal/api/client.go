@@ -64,3 +64,30 @@ func (c *Client) Get(path string, out any) error {
 	}
 	return json.Unmarshal(b, out)
 }
+
+func (c *Client) Post(path string, body, out any) error {
+	b, err := c.do("POST", path, body)
+	if err != nil {
+		return err
+	}
+	if out != nil {
+		return json.Unmarshal(b, out)
+	}
+	return nil
+}
+
+func (c *Client) Put(path string, body, out any) error {
+	b, err := c.do("PUT", path, body)
+	if err != nil {
+		return err
+	}
+	if out != nil {
+		return json.Unmarshal(b, out)
+	}
+	return nil
+}
+
+func (c *Client) Delete(path string) error {
+	_, err := c.do("DELETE", path, nil)
+	return err
+}

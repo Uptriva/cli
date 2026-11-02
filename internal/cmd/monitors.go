@@ -52,6 +52,62 @@ func monitorsCmd() *cobra.Command {
 		},
 	}
 	list.Flags().StringVar(&pageID, "status-page", "", "filter by status page id")
-	c.AddCommand(list)
+	var mType, mTarget, mName string
+	var mInterval int
+	create := &cobra.Command{
+		Use:   "create",
+		Short: "Create a monitor",
+		RunE: func(c *cobra.Command, args []string) error {
+			if pageID == "" {
+				return fmt.Errorf("--status-page is required")
+			}
+			if mType == "" || mTarget == "" {
+				return fmt.Errorf("--type and --target are required")
+			}
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			body := map[string]any{
+				"status_page_id": pageID,
+				"type":           mType,
+				"target":         mTarget,
+				"name":           mName,
+			}
+			if mInterval > 0 {
+				body["interval"] = mInterval
+			}
+			var resp any
+			if err := cl.Post("/monitors", body, &resp); err != nil {
+				return err
+			}
+			b, _ := json.MarshalIndent(resp, "", "  ")
+			fmt.Println(string(b))
+			return nil
+		},
+	}
+	create.Flags().StringVar(&mType, "type", "", "monitor type (http, tcp, ping, heartbeat, ...)")
+	create.Flags().StringVar(&mTarget, "target", "", "monitor target (url, host:port, ...)")
+	create.Flags().StringVar(&mName, "name", "", "monitor name")
+	create.Flags().IntVar(&mInterval, "interval", 0, "check interval in seconds")
+	create.Flags().StringVar(&pageID, "status-page", "", "status page id")
+	action := func(verb, method, suffix string) *cobra.Command {
+		return &cobra.Command{
+			Use:   verb + " <id>",
+			Short: verb + " a monitor",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(c *cobra.Command, args []string) error {
+				cl, err := client()
+				if err != nil {
+					return err
+				}
+				if method == "DELETE" {
+					return cl.Delete("/monitors/" + args[0] + suffix)
+				}
+				return cl.Post("/monitors/"+args[0]+suffix, nil, nil)
+			},
+		}
+	}
+	c.AddCommand(list, create, action("pause", "POST", "/pause"), action("resume", "POST", "/resume"), action("delete", "DELETE", ""))
 	return c
 }
