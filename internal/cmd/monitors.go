@@ -26,16 +26,18 @@ func colorStatus(s string) string {
 }
 
 type monitor struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	Status string `json:"status"`
-	Target string `json:"target"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Status  string `json:"status"`
+	Target  string `json:"target"`
+	Latency float64 `json:"avg_latency_24h"`
+	Avg     float64 `json:"avg_latency"`
 }
 
 func monitorsCmd() *cobra.Command {
 	c := &cobra.Command{Use: "monitors", Short: "Manage monitors"}
-	var pageID string
+	var pageID, fType, fStatus string
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List monitors",
@@ -64,6 +66,12 @@ func monitorsCmd() *cobra.Command {
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 			fmt.Fprintln(w, "\033[2mID\tNAME\tTYPE\tSTATUS\tTARGET\033[0m")
 			for _, m := range resp.Monitors {
+				if fType != "" && m.Type != fType {
+					continue
+				}
+				if fStatus != "" && m.Status != fStatus {
+					continue
+				}
 				id := m.ID
 				if len(id) > 8 {
 					id = id[:8]
@@ -74,6 +82,8 @@ func monitorsCmd() *cobra.Command {
 		},
 	}
 	list.Flags().StringVar(&pageID, "status-page", "", "filter by status page id")
+	list.Flags().StringVar(&fType, "type", "", "filter by monitor type")
+	list.Flags().StringVar(&fStatus, "status", "", "filter by status (up, down, degraded, paused)")
 	var mType, mTarget, mName string
 	var mInterval int
 	create := &cobra.Command{
@@ -130,6 +140,42 @@ func monitorsCmd() *cobra.Command {
 			},
 		}
 	}
-	c.AddCommand(list, create, action("pause", "POST", "/pause"), action("resume", "POST", "/resume"), action("delete", "DELETE", ""))
+	show := &cobra.Command{
+		Use:   "show <id|name>",
+		Short: "Show monitor details",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			var all []monitor
+			if err := cl.Get("/monitors", &all); err != nil {
+				return err
+			}
+			arg := strings.ToLower(args[0])
+			var match *monitor
+			for i, m := range all {
+				if strings.HasPrefix(m.ID, args[0]) || strings.EqualFold(m.Name, args[0]) {
+					match = &all[i]
+					break
+				}
+				if strings.Contains(strings.ToLower(m.Name), arg) {
+					match = &all[i]
+				}
+			}
+			if match == nil {
+				return fmt.Errorf("no monitor matching %q", args[0])
+			}
+			var detail any
+			if err := cl.Get("/monitors/"+match.ID, &detail); err != nil {
+				detail = map[string]string{"error": err.Error()}
+			}
+			b, _ := json.MarshalIndent(detail, "", "  ")
+			fmt.Println(string(b))
+			return nil
+		},
+	}
+	c.AddCommand(list, create, show, action("pause", "POST", "/pause"), action("resume", "POST", "/resume"), action("delete", "DELETE", ""))
 	return c
 }
