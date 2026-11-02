@@ -4,10 +4,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
+
+func colorStatus(s string) string {
+	switch strings.ToLower(s) {
+	case "up":
+		return "\033[32mup\033[0m"
+	case "down":
+		return "\033[31mdown\033[0m"
+	case "degraded":
+		return "\033[33mdegraded\033[0m"
+	case "paused":
+		return "\033[90mpaused\033[0m"
+	default:
+		return s
+	}
+}
 
 type monitor struct {
 	ID     string `json:"id"`
@@ -35,18 +51,24 @@ func monitorsCmd() *cobra.Command {
 			var resp struct {
 				Monitors []monitor `json:"monitors"`
 			}
-			if err := cl.Get(path, &resp); err != nil {
+			var raw []monitor
+			if err := cl.Get(path, &raw); err != nil {
 				return err
 			}
+			resp.Monitors = raw
 			if outputJSON {
 				b, _ := json.MarshalIndent(resp.Monitors, "", "  ")
 				fmt.Println(string(b))
 				return nil
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tNAME\tTYPE\tSTATUS\tTARGET")
+			fmt.Fprintln(w, "\033[2mID\tNAME\tTYPE\tSTATUS\tTARGET\033[0m")
 			for _, m := range resp.Monitors {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", m.ID[:8], m.Name, m.Type, m.Status, m.Target)
+				id := m.ID
+				if len(id) > 8 {
+					id = id[:8]
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", id, m.Name, m.Type, colorStatus(m.Status), m.Target)
 			}
 			return w.Flush()
 		},

@@ -24,15 +24,34 @@ func incidentsCmd() *cobra.Command {
 			if pageID != "" {
 				path += "?status_page_id=" + pageID
 			}
-			var resp any
+			var resp []struct {
+				ID       string `json:"id"`
+				Title    string `json:"title"`
+				Severity string `json:"severity"`
+				Status   string `json:"status"`
+			}
 			if err := cl.Get(path, &resp); err != nil {
 				return err
 			}
-			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
-			_ = os.Stdout
-			_ = tabwriter.NewWriter
-			return nil
+			if outputJSON {
+				b, _ := json.MarshalIndent(resp, "", "  ")
+				fmt.Println(string(b))
+				return nil
+			}
+			if len(resp) == 0 {
+				fmt.Println("No incidents.")
+				return nil
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+			fmt.Fprintln(w, "ID\tTITLE\tSEVERITY\tSTATUS")
+			for _, i := range resp {
+				id := i.ID
+				if len(id) > 8 {
+					id = id[:8]
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", id, i.Title, i.Severity, i.Status)
+			}
+			return w.Flush()
 		},
 	}
 	list.Flags().StringVar(&pageID, "status-page", "", "filter by status page id")
