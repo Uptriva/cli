@@ -55,6 +55,12 @@ uptriva auth whoami, uptriva auth logout
 Most commands that take an id also take a name — `uptriva monitors pause Website`
 works the same as the UUID. `-o json` works everywhere and pipes into `jq`.
 
+## AI agents
+
+[`llms.txt`](llms.txt) documents the command surface, auth model, output
+formats and scripting patterns — point an AI agent at it and it can drive
+the CLI correctly.
+
 ## Config
 
 Stored at `~/.config/uptriva/config.yaml` (0600). Token and API base URL only —

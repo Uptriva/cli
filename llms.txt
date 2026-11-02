@@ -1,0 +1,70 @@
+# uptriva CLI
+
+Command-line client for the Uptriva monitoring API. Use it to manage
+monitors, incidents, contacts, webhooks, groups, maintenance windows and
+status pages from a terminal or script.
+
+## Auth
+
+- `uptriva auth login --token <token>` stores the token at
+  `~/.config/uptriva/config.yaml` (0600). Interactive prompt works too.
+- `UPTRIVA_TOKEN` and `UPTRIVA_API_URL` env vars override the config.
+- Tokens come from the Uptriva dashboard (Security → API tokens). Scoped
+  tokens (`monitors:write`, page-restricted) are enforced server-side.
+- `uptriva auth whoami` prints endpoint + masked token. `logout` removes it.
+
+## Output
+
+- Tables by default. `-o json` returns raw API JSON — always use it when
+  parsing output programmatically.
+- Most commands accept a name OR an id/short-id prefix: `uptriva monitors
+  pause Website` resolves "Website" to its UUID. `--status-page` accepts
+  ids (and slugs on `watch`/`status-pages show`).
+- Errors exit non-zero with a human message; `plan upgrade required: ...`
+  indicates a tier-gated feature.
+
+## Commands
+
+```
+monitors list [--status-page <id>] [--type <t>] [--status <s>]
+monitors show <id|name>          details + recent checks
+monitors create --type <t> --target <t> --status-page <id> [--name] [--interval]
+monitors update <id|name> [--name] [--target] [--interval]
+monitors pause|resume|delete <id|name>
+heartbeat <id|name>              push a heartbeat ping (heartbeat monitors)
+watch [--status-page <id|slug>]  live status TUI, 10s refresh
+
+status-pages list|show|create|delete|update
+incidents list|create|update <id> --message|ack|resolve|publish|unpublish
+maintenance list|create|delete --status-page <id>
+contacts list|create|delete      --status-page required (email/slack/telegram/sms/phone)
+webhooks list|create|delete|test <id>
+groups list|create|delete
+
+agents                           fleet status
+agents enroll-token --name <n>   issue an enrollment token
+agent-events acknowledge|resolve|reopen <id>
+
+sla get|targets --status-page <id>
+overview                         uptime summary + top agents
+auth login|logout|whoami
+```
+
+## Monitor types
+
+http, tcp, dns, ping, icmp, ssl, domain, smtp, pop3, imap, telnet, udp,
+ftp, sftp, ssh, dnsbl, postgres, mysql, redis, rabbitmq, kafka, mqtt,
+agent, heartbeat, composite, game_server, lavalink, api, kube_deploy,
+docker, podman, docker_swarm, kubernetes, proxmox, vmware, ceph,
+network_device, snmp — availability depends on the account's plan tier.
+
+## Scripted use
+
+- `apply -f config.yaml` is planned for declarative setup; until then use
+  loops over `monitors create`.
+- Example heartbeat flow: create a `heartbeat` monitor → read its
+  `settings.heartbeat_token` via `monitors show <name> -o json` →
+  `POST /heartbeat/<id>` with `Authorization: Bearer <token>` (or just
+  `uptriva heartbeat <name>`).
+- Rate limit: keep below the account's per-minute API limit; `watch`
+  polls every 10s.
