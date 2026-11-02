@@ -48,13 +48,29 @@ func findMonitor(cl *api.Client, arg string) (*monitor, error) {
 }
 
 type monitor struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Type    string `json:"type"`
-	Status  string `json:"status"`
-	Target  string `json:"target"`
-	Latency float64 `json:"avg_latency_24h"`
-	Avg     float64 `json:"avg_latency"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Type         string   `json:"type"`
+	Status       string   `json:"status"`
+	Target       string   `json:"target"`
+	StatusPageID string   `json:"status_page_id"`
+	Regions      []string `json:"regions"`
+	Latency      float64  `json:"avg_latency_24h"`
+	Avg          float64  `json:"avg_latency"`
+}
+
+func pageNames(cl *api.Client) map[string]string {
+	var pages []map[string]any
+	if err := cl.Get("/status-pages", &pages); err != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for _, p := range pages {
+		id, _ := p["id"].(string)
+		name, _ := p["name"].(string)
+		out[id] = name
+	}
+	return out
 }
 
 func monitorsCmd() *cobra.Command {
@@ -85,8 +101,9 @@ func monitorsCmd() *cobra.Command {
 				fmt.Println(string(b))
 				return nil
 			}
+			pages := pageNames(cl)
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "\033[2mID\tNAME\tTYPE\tSTATUS\tTARGET\033[0m")
+			fmt.Fprintln(w, "\033[2mID\tNAME\tTYPE\tSTATUS\tREGIONS\tPAGE\tTARGET\033[0m")
 			for _, m := range resp.Monitors {
 				if fType != "" && m.Type != fType {
 					continue
@@ -98,7 +115,15 @@ func monitorsCmd() *cobra.Command {
 				if len(id) > 8 {
 					id = id[:8]
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", id, m.Name, m.Type, colorStatus(m.Status), m.Target)
+				regions := "-"
+				if len(m.Regions) > 0 {
+					regions = strings.Join(m.Regions, ",")
+				}
+				page := "-"
+				if n, ok := pages[m.StatusPageID]; ok {
+					page = n
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, m.Name, m.Type, colorStatus(m.Status), regions, page, m.Target)
 			}
 			return w.Flush()
 		},
@@ -199,12 +224,52 @@ func monitorsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var detail any
+			var detail map[string]any
 			if err := cl.Get("/monitors/"+match.ID, &detail); err != nil {
-				detail = map[string]string{"error": err.Error()}
+				return err
 			}
-			b, _ := json.MarshalIndent(detail, "", "  ")
-			fmt.Println(string(b))
+			if outputJSON {
+				b, _ := json.MarshalIndent(detail, "", "  ")
+				fmt.Println(string(b))
+				return nil
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+			row := func(k string, v any) {
+				if v != nil && fmt.Sprint(v) != "" {
+					fmt.Fprintf(w, "%s\t%v\n", "\033[2m"+k+"\033[0m", v)
+				}
+			}
+			row("id", detail["id"])
+			row("name", detail["name"])
+			row("type", detail["type"])
+			row("status", colorStatus(fmt.Sprint(detail["status"])))
+			row("target", detail["target"])
+			row("interval", fmt.Sprintf("%vs", detail["interval"]))
+			row("regions", detail["regions"])
+			row("uptime 30d", detail["uptime_percent"])
+			row("avg latency", detail["avg_latency_24h"])
+			row("depends on", detail["depends_on"])
+			row("agent", detail["agent_id"])
+			w.Flush()
+			if checks, ok := detail["checks"].([]any); ok && len(checks) > 0 {
+				fmt.Println("\nrecent checks")
+				w = tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+				fmt.Fprintln(w, "\033[2mTIME\tSTATUS\tLATENCY\tMESSAGE\033[0m")
+				n := len(checks)
+				if n > 10 {
+					checks = checks[:10]
+					_ = n
+				}
+				for _, ch := range checks {
+					cm := ch.(map[string]any)
+					t, _ := cm["created_at"].(string)
+					if len(t) >= 19 {
+						t = t[11:19]
+					}
+					fmt.Fprintf(w, "%s\t%s\t%vms\t%v\n", t, colorStatus(fmt.Sprint(cm["status"])), cm["latency"], cm["message"])
+				}
+				w.Flush()
+			}
 			return nil
 		},
 	}

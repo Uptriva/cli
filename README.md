@@ -42,8 +42,6 @@ uptriva maintenance list|create|delete
 uptriva contacts list|create|delete        email, slack, telegram, sms
 uptriva webhooks list|create|delete|test
 uptriva groups list|create|delete
-uptriva oncall list                        escalation policies
-uptriva members list|invite
 
 uptriva agents                             fleet status
 uptriva agents enroll-token --name ci      enrollment tokens
@@ -51,8 +49,6 @@ uptriva agent-events acknowledge|resolve|reopen <id>
 
 uptriva sla get|targets                    SLA stats
 uptriva overview                           account overview
-uptriva tier-info                          your plan and limits
-uptriva subscribers, uptriva audit-logs
 uptriva auth whoami, uptriva auth logout
 ```
 

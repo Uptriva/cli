@@ -232,30 +232,3 @@ func groupsCmd() *cobra.Command {
 	return c
 }
 
-func oncallCmd() *cobra.Command {
-	c := &cobra.Command{Use: "oncall", Short: "Manage on-call escalation"}
-	var pageID string
-	list := &cobra.Command{
-		Use:   "list",
-		Short: "List escalation policies for a status page",
-		RunE: func(c *cobra.Command, args []string) error {
-			cl, err := client()
-			if err != nil {
-				return err
-			}
-			if pageID == "" {
-				return fmt.Errorf("--status-page is required")
-			}
-			var raw any
-			if err := cl.Get("/status-pages/"+pageID+"/on-call/policies", &raw); err != nil {
-				return err
-			}
-			b, _ := json.MarshalIndent(raw, "", "  ")
-			fmt.Println(string(b))
-			return nil
-		},
-	}
-	list.Flags().StringVar(&pageID, "status-page", "", "status page id")
-	c.AddCommand(list)
-	return c
-}

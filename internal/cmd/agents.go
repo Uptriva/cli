@@ -75,17 +75,43 @@ func agentsCmd() *cobra.Command {
 }
 
 func watchCmd() *cobra.Command {
+	var wPage string
 	c := &cobra.Command{
 		Use:   "watch",
 		Short: "Live monitor status (refreshes every 10s, Ctrl+C to exit)",
+		Example: "  uptriva watch\n  uptriva watch --status-page uptriva",
 		RunE: func(c *cobra.Command, args []string) error {
 			cl, err := client()
 			if err != nil {
 				return err
 			}
+			pageID := ""
+			pageName := ""
+			if wPage != "" {
+				var pages []map[string]any
+				if err := cl.Get("/status-pages", &pages); err != nil {
+					return err
+				}
+				for _, p := range pages {
+					pid, _ := p["id"].(string)
+					slug, _ := p["slug"].(string)
+					name, _ := p["name"].(string)
+					if strings.HasPrefix(pid, wPage) || slug == wPage {
+						pageID, pageName = pid, name
+						break
+					}
+				}
+				if pageID == "" {
+					return fmt.Errorf("no status page matching %q", wPage)
+				}
+			}
 			for {
 				var raw []monitor
-				if err := cl.Get("/monitors", &raw); err != nil {
+				path := "/monitors"
+				if pageID != "" {
+					path += "?status_page_id=" + pageID
+				}
+				if err := cl.Get(path, &raw); err != nil {
 					return err
 				}
 				fmt.Print("\033[H\033[J")
@@ -104,7 +130,11 @@ func watchCmd() *cobra.Command {
 					}
 					rows = append(rows, m)
 				}
-				fmt.Printf("uptriva watch — %s (refresh 10s, ctrl+c quit)\n\n", time.Now().Format("15:04:05"))
+				title := "uptriva watch"
+				if pageName != "" {
+					title += " — " + pageName
+				}
+				fmt.Printf("%s — %s (refresh 10s, ctrl+c quit)\n\n", title, time.Now().Format("15:04:05"))
 				w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 				fmt.Fprintln(w, "\033[2mID\tSTATUS\tLATENCY\tNAME\tTARGET\033[0m")
 				for _, m := range rows {

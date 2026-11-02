@@ -3,8 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
-	"strings"
+	"os"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -29,11 +29,26 @@ func slaCmd() *cobra.Command {
 			if pageID == "" {
 				return fmt.Errorf("--status-page is required")
 			}
-			var resp any
+			var resp map[string]any
 			if err := cl.Get("/status-pages/"+pageID+"/sla", &resp); err != nil {
 				return err
 			}
-			return printJSON(resp)
+			if outputJSON {
+				return printJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+			for _, k := range []string{"uptime_percent", "period", "monitors_total", "monitors_meeting", "monitors_failing"} {
+				if v, ok := resp[k]; ok {
+					fmt.Fprintf(w, "%s\t%v\n", "\033[2m"+k+"\033[0m", v)
+				}
+			}
+			w.Flush()
+			for k, v := range resp {
+				if _, isMap := v.(map[string]any); isMap {
+					fmt.Fprintf(w, "%s\t%v\n", "\033[2m"+k+"\033[0m", v)
+				}
+			}
+			return nil
 		},
 	}
 	targets := &cobra.Command{
@@ -47,11 +62,18 @@ func slaCmd() *cobra.Command {
 			if pageID == "" {
 				return fmt.Errorf("--status-page is required")
 			}
-			var resp any
+			var resp map[string]any
 			if err := cl.Get("/status-pages/"+pageID+"/sla-targets", &resp); err != nil {
 				return err
 			}
-			return printJSON(resp)
+			if outputJSON {
+				return printJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+			for k, v := range resp {
+				fmt.Fprintf(w, "%s\t%v\n", "\033[2m"+k+"\033[0m", v)
+			}
+			return w.Flush()
 		},
 	}
 	c.PersistentFlags().StringVar(&pageID, "status-page", "", "status page id")
@@ -110,109 +132,60 @@ func overviewCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var resp any
-			if err := cl.Get("/overview", &resp); err != nil {
-				return err
-			}
-			return printJSON(resp)
-		},
-	}
-}
-
-func tierinfoCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "tier-info",
-		Short: "Show your plan tier and limits",
-		RunE: func(c *cobra.Command, args []string) error {
-			cl, err := client()
-			if err != nil {
-				return err
-			}
 			var resp struct {
-				Tier   string                 `json:"tier"`
-				Usage  map[string]float64     `json:"usage"`
-				Limits map[string]interface{} `json:"limits"`
+				Tier            string  `json:"tier"`
+				GlobalUptime    float64 `json:"global_uptime"`
+				AvgResponse     float64 `json:"avg_response_ms"`
+				AgentsOnline    int     `json:"agents_online"`
+				ActiveIncidents int     `json:"active_incidents"`
+				TotalMonitors   int     `json:"total_monitors"`
+				TotalPages      int     `json:"total_status_pages"`
+				Monitors        []struct {
+					Name    string  `json:"name"`
+					Status  string  `json:"status"`
+					Uptime  float64 `json:"uptime"`
+					Latency int     `json:"latency_ms"`
+					Page    string  `json:"status_page_name"`
+				} `json:"monitors"`
+				TopAgents []struct {
+					Name   string  `json:"name"`
+					CPU    float64 `json:"cpu_usage"`
+					RAM    float64 `json:"ram_usage"`
+					Disk   float64 `json:"disk_usage"`
+					Region string  `json:"region"`
+				} `json:"top_agents"`
 			}
-			if err := cl.Get("/tier-info", &resp); err != nil {
+			if err := cl.Get("/overview", &resp); err != nil {
 				return err
 			}
 			if outputJSON {
 				return printJSON(resp)
 			}
-			fmt.Printf("plan\t%s\n", resp.Tier)
-			pairs := [][2]string{
-				{"monitors", "max_monitors"},
-				{"agents", "max_agents"},
-				{"status_pages", "max_status_pages"},
-				{"login_seats", "max_login_seats"},
-				{"notify_seats", "max_notify_seats"},
+			fmt.Printf("%.2f%% uptime · %dms avg · %d monitors · %d agents online", resp.GlobalUptime, int(resp.AvgResponse), resp.TotalMonitors, resp.AgentsOnline)
+			if resp.ActiveIncidents > 0 {
+				fmt.Printf(" · \033[31m%d active incident(s)\033[0m", resp.ActiveIncidents)
 			}
-			for _, p := range pairs {
-				used, uok := resp.Usage[p[0]]
-				max, mok := resp.Limits[p[1]].(float64)
-				if uok && mok && max > 0 {
-					fmt.Printf("%s\t%d / %d\n", strings.ReplaceAll(p[0], "_", " "), int(used), int(max))
-				} else if uok {
-					fmt.Printf("%s\t%d\n", strings.ReplaceAll(p[0], "_", " "), int(used))
+			fmt.Println("\n")
+			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+			fmt.Fprintln(w, "\033[2mMONITOR\tSTATUS\tUPTIME\tLATENCY\tPAGE\033[0m")
+			for _, m := range resp.Monitors {
+				lat := "-"
+				if m.Latency > 0 {
+					lat = fmt.Sprintf("%dms", m.Latency)
 				}
+				fmt.Fprintf(w, "%s\t%s\t%.2f%%\t%s\t%s\n", m.Name, colorStatus(m.Status), m.Uptime, lat, m.Page)
 			}
-			if g, ok := resp.Usage["groups"]; ok {
-				fmt.Printf("groups\t%d\n", int(g))
-			}
-			var feats []string
-			for k, v := range resp.Limits {
-				if b, ok := v.(bool); ok && b {
-					feats = append(feats, strings.ReplaceAll(k, "_", " "))
+			w.Flush()
+			if len(resp.TopAgents) > 0 {
+				fmt.Println("\ntop agents")
+				w = tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+				fmt.Fprintln(w, "\033[2mAGENT\tCPU\tRAM\tDISK\tREGION\033[0m")
+				for _, a := range resp.TopAgents {
+					fmt.Fprintf(w, "%s\t%.0f%%\t%.0f%%\t%.0f%%\t%s\n", a.Name, a.CPU, a.RAM, a.Disk, a.Region)
 				}
-			}
-			sort.Strings(feats)
-			if len(feats) > 0 {
-				fmt.Printf("features\t%s\n", strings.Join(feats, ", "))
-			}
-			if regions, ok := resp.Limits["allowed_regions"].([]interface{}); ok {
-				var rs []string
-				for _, r := range regions {
-					rs = append(rs, fmt.Sprint(r))
-				}
-				fmt.Printf("regions\t%s\n", strings.Join(rs, ", "))
+				w.Flush()
 			}
 			return nil
-		},
-	}
-}
-
-func subscribersCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "subscribers",
-		Short: "List status page subscribers",
-		RunE: func(c *cobra.Command, args []string) error {
-			cl, err := client()
-			if err != nil {
-				return err
-			}
-			var resp any
-			if err := cl.Get("/subscribers", &resp); err != nil {
-				return err
-			}
-			return printJSON(resp)
-		},
-	}
-}
-
-func auditCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "audit-logs",
-		Short: "Show audit log entries",
-		RunE: func(c *cobra.Command, args []string) error {
-			cl, err := client()
-			if err != nil {
-				return err
-			}
-			var resp any
-			if err := cl.Get("/audit-logs", &resp); err != nil {
-				return err
-			}
-			return printJSON(resp)
 		},
 	}
 }
