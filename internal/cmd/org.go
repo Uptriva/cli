@@ -37,13 +37,25 @@ func contactsCmd() *cobra.Command {
 				return nil
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tNAME\tTYPE\tTARGET")
+			fmt.Fprintln(w, "ID\tNAME\tEMAIL\tSMS\tPHONE\tSLACK\tTELEGRAM")
 			for _, ct := range raw {
 				id, _ := ct["id"].(string)
 				if len(id) > 8 {
 					id = id[:8]
 				}
-				fmt.Fprintf(w, "%s\t%v\t%v\t%v\n", id, ct["name"], ct["type"], ct["target"])
+				yes := func(k string) string {
+					if b, _ := ct[k].(bool); b {
+						return "yes"
+					}
+					return "-"
+				}
+				str := func(k string) string {
+					if v, _ := ct[k].(string); v != "" {
+						return v
+					}
+					return "-"
+				}
+				fmt.Fprintf(w, "%s\t%v\t%s\t%s\t%s\t%s\t%s\n", id, ct["name"], str("email"), str("sms"), str("phone"), yes("slack_configured"), yes("telegram_configured"))
 			}
 			return w.Flush()
 		},

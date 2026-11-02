@@ -33,13 +33,17 @@ func webhooksCmd() *cobra.Command {
 				return nil
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tURL\tACTIVE")
+			fmt.Fprintln(w, "ID\tNAME\tPROVIDER\tURL\tACTIVE")
 			for _, wh := range raw {
 				id, _ := wh["id"].(string)
 				if len(id) > 8 {
 					id = id[:8]
 				}
-				fmt.Fprintf(w, "%s\t%v\t%v\n", id, wh["url"], wh["active"])
+				active := "no"
+				if b, _ := wh["is_active"].(bool); b {
+					active = "yes"
+				}
+				fmt.Fprintf(w, "%s\t%v\t%v\t%v\t%s\n", id, wh["name"], wh["provider"], wh["url"], active)
 			}
 			return w.Flush()
 		},
