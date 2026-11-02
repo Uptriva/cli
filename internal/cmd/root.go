@@ -10,14 +10,17 @@ import (
 
 var outputJSON bool
 
+var appVersion string
+
 func NewRoot(version string) *cobra.Command {
+	appVersion = version
 	root := &cobra.Command{
 		Use:     "uptriva",
 		Short:   "Uptriva CLI — manage monitors, incidents and status pages",
 		Version: version,
 	}
 	root.PersistentFlags().BoolVarP(&outputJSON, "json", "o", false, "output JSON instead of a table")
-	root.AddCommand(authCmd(), monitorsCmd(), incidentsCmd(), statusPagesCmd(), agentsCmd(), watchCmd(), contactsCmd(), maintenanceCmd(), groupsCmd(), webhooksCmd(), slaCmd(), heartbeatCmd(), overviewCmd(), agentEventsCmd())
+	root.AddCommand(authCmd(), monitorsCmd(), incidentsCmd(), statusPagesCmd(), agentsCmd(), watchCmd(), contactsCmd(), maintenanceCmd(), groupsCmd(), webhooksCmd(), slaCmd(), heartbeatCmd(), overviewCmd(), agentEventsCmd(), updateCmd())
 	return root
 }
 
