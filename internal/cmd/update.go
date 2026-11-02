@@ -30,11 +30,14 @@ func updateCmd() *cobra.Command {
 				return err
 			}
 			current := appVersion
+			latest := strings.TrimPrefix(rel.Tag, "v")
+			if strings.TrimPrefix(current, "v") == latest {
+				fmt.Printf("already up to date (%s)\n", current)
+				return nil
+			}
 			fmt.Printf("current %s — latest %s\n", current, rel.Tag)
-			if current == rel.Tag || check {
-				if check && current != rel.Tag {
-					fmt.Println("update available")
-				}
+			if check {
+				fmt.Println("update available")
 				return nil
 			}
 			asset := assetName(rel.Tag)
