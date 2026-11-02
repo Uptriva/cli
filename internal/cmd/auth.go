@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"bufio"
+	"os"
+	"strings"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -15,7 +18,16 @@ func authCmd() *cobra.Command {
 		Short: "Save an API token",
 		RunE: func(c *cobra.Command, args []string) error {
 			if token == "" {
-				return fmt.Errorf("pass --token <uk_... or scoped token>")
+				if t := os.Getenv("UPTRIVA_TOKEN"); t != "" {
+					token = t
+				} else {
+					fmt.Fprint(os.Stderr, "API token: ")
+					sc := bufio.NewScanner(os.Stdin)
+					if !sc.Scan() || strings.TrimSpace(sc.Text()) == "" {
+						return fmt.Errorf("no token provided")
+					}
+					token = strings.TrimSpace(sc.Text())
+				}
 			}
 			cfg, _ := config.Load()
 			cfg.Token = token
@@ -36,7 +48,23 @@ func authCmd() *cobra.Command {
 			return cfg.Save()
 		},
 	}
-	c.AddCommand(login, logout)
+	whoami := &cobra.Command{
+		Use:   "whoami",
+		Short: "Show current auth config",
+		RunE: func(c *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			if cfg.Token == "" {
+				fmt.Println("not authenticated")
+				return nil
+			}
+			fmt.Printf("endpoint: %s\ntoken: %s...%s\n", cfg.BaseURL, cfg.Token[:8], cfg.Token[len(cfg.Token)-4:])
+			return nil
+		},
+	}
+	c.AddCommand(login, logout, whoami)
 	return c
 }
 

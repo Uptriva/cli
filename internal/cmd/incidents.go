@@ -69,6 +69,34 @@ func incidentsCmd() *cobra.Command {
 			},
 		}
 	}
-	c.AddCommand(list, act("ack"), act("resolve"))
+	var iTitle, iSeverity, iPage string
+	create := &cobra.Command{
+		Use:     "create",
+		Short:   "Create an incident",
+		Example: "  uptriva incidents create --title 'DB failover' --severity major --status-page <id>",
+		RunE: func(c *cobra.Command, args []string) error {
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			if iPage == "" {
+				return fmt.Errorf("--status-page is required")
+			}
+			if iTitle == "" {
+				return fmt.Errorf("--title is required")
+			}
+			var resp any
+			if err := cl.Post("/status-pages/"+iPage+"/incidents", map[string]any{"title": iTitle, "severity": iSeverity}, &resp); err != nil {
+				return err
+			}
+			fmt.Printf("Created incident %q\n", iTitle)
+			_ = resp
+			return nil
+		},
+	}
+	create.Flags().StringVar(&iTitle, "title", "", "incident title")
+	create.Flags().StringVar(&iSeverity, "severity", "minor", "severity (minor, major, critical)")
+	create.Flags().StringVar(&iPage, "status-page", "", "status page id")
+	c.AddCommand(list, create, act("ack"), act("resolve"))
 	return c
 }

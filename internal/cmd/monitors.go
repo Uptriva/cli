@@ -7,6 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/uptriva/cli/internal/api"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +24,27 @@ func colorStatus(s string) string {
 	default:
 		return s
 	}
+}
+
+func findMonitor(cl *api.Client, arg string) (*monitor, error) {
+	var all []monitor
+	if err := cl.Get("/monitors", &all); err != nil {
+		return nil, err
+	}
+	low := strings.ToLower(arg)
+	var match *monitor
+	for i, m := range all {
+		if strings.HasPrefix(m.ID, arg) || strings.EqualFold(m.Name, arg) {
+			return &all[i], nil
+		}
+		if strings.Contains(low, strings.ToLower(m.Name)) || strings.Contains(strings.ToLower(m.Name), low) {
+			match = &all[i]
+		}
+	}
+	if match == nil {
+		return nil, fmt.Errorf("no monitor matching %q", arg)
+	}
+	return match, nil
 }
 
 type monitor struct {
@@ -87,8 +109,9 @@ func monitorsCmd() *cobra.Command {
 	var mType, mTarget, mName string
 	var mInterval int
 	create := &cobra.Command{
-		Use:   "create",
-		Short: "Create a monitor",
+		Use:     "create",
+		Short:   "Create a monitor",
+		Example: "  uptriva monitors create --type http --target https://example.com --status-page <id> --name Example",
 		RunE: func(c *cobra.Command, args []string) error {
 			if pageID == "" {
 				return fmt.Errorf("--status-page is required")
@@ -125,25 +148,44 @@ func monitorsCmd() *cobra.Command {
 	create.Flags().StringVar(&pageID, "status-page", "", "status page id")
 	action := func(verb, method, suffix string) *cobra.Command {
 		return &cobra.Command{
-			Use:   verb + " <id>",
-			Short: verb + " a monitor",
-			Args:  cobra.ExactArgs(1),
+			Use:     verb + " <id|name>",
+			Short:   strings.Title(verb) + " a monitor",
+			Args:    cobra.ExactArgs(1),
+			Example: "  uptriva monitors " + verb + " Website",
 			RunE: func(c *cobra.Command, args []string) error {
 				cl, err := client()
 				if err != nil {
 					return err
 				}
-				if method == "DELETE" {
-					return cl.Delete("/monitors/" + args[0] + suffix)
+				m, err := findMonitor(cl, args[0])
+				if err != nil {
+					return err
 				}
-				return cl.Post("/monitors/"+args[0]+suffix, nil, nil)
+				if method == "DELETE" {
+					if err := cl.Delete("/monitors/" + m.ID + suffix); err != nil {
+						return err
+					}
+					fmt.Printf("Deleted monitor %q\n", m.Name)
+					return nil
+				}
+				status := "pending"
+				if verb == "pause" {
+					status = "paused"
+				}
+				var resp any
+				if err := cl.Put("/monitors/"+m.ID, map[string]string{"status": status}, &resp); err != nil {
+					return err
+				}
+				fmt.Printf("%s %q\n", strings.Title(verb)+"ed monitor", m.Name)
+				return nil
 			},
 		}
 	}
 	show := &cobra.Command{
-		Use:   "show <id|name>",
-		Short: "Show monitor details",
-		Args:  cobra.ExactArgs(1),
+		Use:     "show <id|name>",
+		Short:   "Show monitor details",
+		Args:    cobra.ExactArgs(1),
+		Example: "  uptriva monitors show Website\n  uptriva monitors show 8b289bd7",
 		RunE: func(c *cobra.Command, args []string) error {
 			cl, err := client()
 			if err != nil {
@@ -153,19 +195,9 @@ func monitorsCmd() *cobra.Command {
 			if err := cl.Get("/monitors", &all); err != nil {
 				return err
 			}
-			arg := strings.ToLower(args[0])
-			var match *monitor
-			for i, m := range all {
-				if strings.HasPrefix(m.ID, args[0]) || strings.EqualFold(m.Name, args[0]) {
-					match = &all[i]
-					break
-				}
-				if strings.Contains(strings.ToLower(m.Name), arg) {
-					match = &all[i]
-				}
-			}
-			if match == nil {
-				return fmt.Errorf("no monitor matching %q", args[0])
+			match, err := findMonitor(cl, args[0])
+			if err != nil {
+				return err
 			}
 			var detail any
 			if err := cl.Get("/monitors/"+match.ID, &detail); err != nil {
@@ -176,6 +208,46 @@ func monitorsCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(list, create, show, action("pause", "POST", "/pause"), action("resume", "POST", "/resume"), action("delete", "DELETE", ""))
+	var uName, uTarget string
+	var uInterval int
+	update := &cobra.Command{
+		Use:     "update <id|name>",
+		Short:   "Update a monitor",
+		Args:    cobra.ExactArgs(1),
+		Example: "  uptriva monitors update Website --interval 60",
+		RunE: func(c *cobra.Command, args []string) error {
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			m, err := findMonitor(cl, args[0])
+			if err != nil {
+				return err
+			}
+			body := map[string]any{}
+			if uName != "" {
+				body["name"] = uName
+			}
+			if uTarget != "" {
+				body["target"] = uTarget
+			}
+			if uInterval > 0 {
+				body["interval"] = uInterval
+			}
+			if len(body) == 0 {
+				return fmt.Errorf("nothing to update — pass --name, --target or --interval")
+			}
+			var resp any
+			if err := cl.Put("/monitors/"+m.ID, body, &resp); err != nil {
+				return err
+			}
+			fmt.Printf("Updated monitor %q\n", m.Name)
+			return nil
+		},
+	}
+	update.Flags().StringVar(&uName, "name", "", "new name")
+	update.Flags().StringVar(&uTarget, "target", "", "new target")
+	update.Flags().IntVar(&uInterval, "interval", 0, "new interval seconds")
+	c.AddCommand(list, create, show, update, action("pause", "POST", "/pause"), action("resume", "POST", "/resume"), action("delete", "DELETE", ""))
 	return c
 }
