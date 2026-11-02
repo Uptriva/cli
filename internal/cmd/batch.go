@@ -165,7 +165,7 @@ func overviewCmd() *cobra.Command {
 			if resp.ActiveIncidents > 0 {
 				fmt.Printf(" · \033[31m%d active incident(s)\033[0m", resp.ActiveIncidents)
 			}
-			fmt.Println("\n")
+			fmt.Println()
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 			fmt.Fprintln(w, "\033[2mMONITOR\tSTATUS\tUPTIME\tLATENCY\tPAGE\033[0m")
 			for _, m := range resp.Monitors {
