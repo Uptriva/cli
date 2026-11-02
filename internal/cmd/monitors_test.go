@@ -2,7 +2,7 @@ package cmd
 
 import "testing"
 
-func TestResourceFromNothing(t *testing.T) {
+func TestRootCommands(t *testing.T) {
 	root := NewRoot("test")
 	names := map[string]bool{}
 	for _, c := range root.Commands() {
