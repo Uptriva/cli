@@ -131,7 +131,7 @@ func monitorsCmd() *cobra.Command {
 	list.Flags().StringVar(&pageID, "status-page", "", "filter by status page id")
 	list.Flags().StringVar(&fType, "type", "", "filter by monitor type")
 	list.Flags().StringVar(&fStatus, "status", "", "filter by status (up, down, degraded, paused)")
-	var mType, mTarget, mName string
+	var mType, mTarget, mName, mAgent string
 	var mInterval int
 	create := &cobra.Command{
 		Use:     "create",
@@ -157,6 +157,9 @@ func monitorsCmd() *cobra.Command {
 			if mInterval > 0 {
 				body["interval"] = mInterval
 			}
+			if mAgent != "" {
+				body["agent_id"] = mAgent
+			}
 			var resp any
 			if err := cl.Post("/monitors", body, &resp); err != nil {
 				return err
@@ -170,6 +173,7 @@ func monitorsCmd() *cobra.Command {
 	create.Flags().StringVar(&mTarget, "target", "", "monitor target (url, host:port, ...)")
 	create.Flags().StringVar(&mName, "name", "", "monitor name")
 	create.Flags().IntVar(&mInterval, "interval", 0, "check interval in seconds")
+	create.Flags().StringVar(&mAgent, "agent", "", "agent id for agent-bound check types")
 	create.Flags().StringVar(&pageID, "status-page", "", "status page id")
 	past := map[string]string{"pause": "Paused", "resume": "Resumed", "delete": "Deleted"}
 	action := func(verb, method, suffix string) *cobra.Command {
