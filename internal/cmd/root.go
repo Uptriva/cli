@@ -20,7 +20,7 @@ func NewRoot(version string) *cobra.Command {
 		Version: version,
 	}
 	root.PersistentFlags().BoolVarP(&outputJSON, "json", "o", false, "output JSON instead of a table")
-	root.AddCommand(authCmd(), monitorsCmd(), incidentsCmd(), statusPagesCmd(), agentsCmd(), watchCmd(), contactsCmd(), maintenanceCmd(), groupsCmd(), webhooksCmd(), slaCmd(), heartbeatCmd(), overviewCmd(), agentEventsCmd(), updateCmd())
+	root.AddCommand(authCmd(), monitorsCmd(), incidentsCmd(), statusPagesCmd(), agentsCmd(), watchCmd(), contactsCmd(), maintenanceCmd(), groupsCmd(), webhooksCmd(), slaCmd(), heartbeatCmd(), overviewCmd(), agentEventsCmd(), updateCmd(), applyCmd())
 	return root
 }
 
