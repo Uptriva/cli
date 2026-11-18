@@ -21,6 +21,7 @@ signs:
   - cmd: cosign
     args:
       - sign-blob
+      - --yes
       - --bundle
       - "${artifact}.sigstore.json"
       - --output-signature
