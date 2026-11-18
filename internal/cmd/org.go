@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"text/tabwriter"
 
@@ -24,12 +25,12 @@ func contactsCmd() *cobra.Command {
 				return fmt.Errorf("--status-page is required")
 			}
 			var raw []map[string]any
-			if err := cl.Get("/notify-contacts?status_page_id="+listPage, &raw); err != nil {
+			if err := cl.Get("/notify-contacts?status_page_id="+url.QueryEscape(listPage), &raw); err != nil {
 				return err
 			}
 			if outputJSON {
 				b, _ := json.MarshalIndent(raw, "", "  ")
-				fmt.Println(string(b))
+				fmt.Print(sanitizeBody(b))
 				return nil
 			}
 			if len(raw) == 0 {
@@ -55,7 +56,7 @@ func contactsCmd() *cobra.Command {
 					}
 					return "-"
 				}
-				fmt.Fprintf(w, "%s\t%v\t%s\t%s\t%s\t%s\t%s\n", id, ct["name"], str("email"), str("sms"), str("phone"), yes("slack_configured"), yes("telegram_configured"))
+				fmt.Fprintf(w, "%s\t%v\t%s\t%s\t%s\t%s\t%s\n", id, safe(str("name")), safe(str("email")), str("sms"), str("phone"), yes("slack_configured"), yes("telegram_configured"))
 			}
 			return w.Flush()
 		},
@@ -97,7 +98,7 @@ func contactsCmd() *cobra.Command {
 				return err
 			}
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -118,7 +119,7 @@ func contactsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cl.Delete("/notify-contacts/" + args[0])
+			return cl.Delete("/notify-contacts/" + url.PathEscape(args[0]))
 		},
 	}
 	c.AddCommand(list, create, del)
@@ -136,13 +137,13 @@ func maintenanceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := "/status-pages/" + pageID + "/maintenance"
+			path := "/status-pages/" + url.PathEscape(pageID) + "/maintenance"
 			var raw any
 			if err := cl.Get(path, &raw); err != nil {
 				return err
 			}
 			b, _ := json.MarshalIndent(raw, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -160,10 +161,10 @@ func maintenanceCmd() *cobra.Command {
 				return fmt.Errorf("--status-page is required")
 			}
 			var resp any
-			if err := cl.Post("/status-pages/"+pageID+"/maintenance", map[string]any{"title": mTitle, "start_time": mStart, "end_time": mEnd}, &resp); err != nil {
+			if err := cl.Post("/status-pages/"+url.PathEscape(pageID)+"/maintenance", map[string]any{"title": mTitle, "start_time": mStart, "end_time": mEnd}, &resp); err != nil {
 				return err
 			}
-			fmt.Printf("Created maintenance %q\n", mTitle)
+			fmt.Printf("Created maintenance %q\n", safe(mTitle))
 			_ = resp
 			return nil
 		},
@@ -181,7 +182,7 @@ func maintenanceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cl.Delete("/maintenance/" + args[0])
+			return cl.Delete("/maintenance/" + url.PathEscape(args[0]))
 		},
 	}
 	c.AddCommand(list, create, delM)
@@ -204,7 +205,7 @@ func groupsCmd() *cobra.Command {
 				return err
 			}
 			b, _ := json.MarshalIndent(raw, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -222,7 +223,7 @@ func groupsCmd() *cobra.Command {
 				return err
 			}
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -237,10 +238,9 @@ func groupsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cl.Delete("/groups/" + args[0])
+			return cl.Delete("/groups/" + url.PathEscape(args[0]))
 		},
 	}
 	c.AddCommand(list, create, delG)
 	return c
 }
-

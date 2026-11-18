@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -91,12 +92,12 @@ func applyCmd() *cobra.Command {
 				}
 				if ex, ok := byName[m.Name]; ok {
 					var resp any
-					if err := cl.Put("/monitors/"+ex.ID, body, &resp); err != nil {
-						fmt.Printf("  x %-20s %s\n", m.Name, err)
+					if err := cl.Put("/monitors/"+url.PathEscape(ex.ID), body, &resp); err != nil {
+						fmt.Printf("  x %-20s %s\n", safe(m.Name), err)
 						failed++
 						continue
 					}
-					fmt.Printf("  ~ %-20s updated\n", m.Name)
+					fmt.Printf("  ~ %-20s updated\n", safe(m.Name))
 					updated++
 					continue
 				}
@@ -105,11 +106,11 @@ func applyCmd() *cobra.Command {
 				}
 				var resp any
 				if err := cl.Post("/monitors", body, &resp); err != nil {
-					fmt.Printf("  x %-20s %s\n", m.Name, err)
+					fmt.Printf("  x %-20s %s\n", safe(m.Name), err)
 					failed++
 					continue
 				}
-				fmt.Printf("  + %-20s created\n", m.Name)
+				fmt.Printf("  + %-20s created\n", safe(m.Name))
 				created++
 			}
 			for _, ct := range doc.Contacts {
@@ -119,7 +120,7 @@ func applyCmd() *cobra.Command {
 				}
 				var resp any
 				if err := cl.Post("/notify-contacts", body, &resp); err != nil {
-					fmt.Printf("  x contact %-14s %s\n", ct.Name, err)
+					fmt.Printf("  x contact %-14s %s\n", safe(ct.Name), err)
 					failed++
 					continue
 				}

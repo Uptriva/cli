@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -26,7 +27,7 @@ func statusPagesCmd() *cobra.Command {
 				return err
 			}
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -58,11 +59,11 @@ func statusPagesCmd() *cobra.Command {
 				return fmt.Errorf("no status page matching %q", args[0])
 			}
 			var resp any
-			if err := cl.Get("/status-pages/"+id, &resp); err != nil {
+			if err := cl.Get("/status-pages/"+url.PathEscape(id), &resp); err != nil {
 				return err
 			}
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -75,7 +76,7 @@ func statusPagesCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cl.Delete("/status-pages/" + args[0])
+			return cl.Delete("/status-pages/" + url.PathEscape(args[0]))
 		},
 	}
 	c.AddCommand(create, del, show)
@@ -95,13 +96,13 @@ func statusPagesCmd() *cobra.Command {
 		}
 		if outputJSON {
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		}
 		pages, ok := resp.([]any)
 		if !ok {
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		}
 		if len(pages) == 0 {
@@ -111,7 +112,10 @@ func statusPagesCmd() *cobra.Command {
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 		fmt.Fprintln(w, "ID\tNAME\tSLUG")
 		for _, p := range pages {
-			pg := p.(map[string]any)
+			pg, ok := p.(map[string]any)
+			if !ok {
+				continue
+			}
 			id, _ := pg["id"].(string)
 			if len(id) > 8 {
 				id = id[:8]

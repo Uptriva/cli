@@ -3,12 +3,13 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"text/tabwriter"
 
-	"github.com/uptriva/cli/internal/api"
 	"github.com/spf13/cobra"
+	"github.com/uptriva/cli/internal/api"
 )
 
 func colorStatus(s string) string {
@@ -37,7 +38,7 @@ func findMonitor(cl *api.Client, arg string) (*monitor, error) {
 		if strings.HasPrefix(m.ID, arg) || strings.EqualFold(m.Name, arg) {
 			return &all[i], nil
 		}
-		if strings.Contains(low, strings.ToLower(m.Name)) || strings.Contains(strings.ToLower(m.Name), low) {
+		if m.Name != "" && (strings.Contains(low, strings.ToLower(m.Name)) || strings.Contains(strings.ToLower(m.Name), low)) {
 			match = &all[i]
 		}
 	}
@@ -86,7 +87,7 @@ func monitorsCmd() *cobra.Command {
 			}
 			path := "/monitors"
 			if pageID != "" {
-				path += "?status_page_id=" + pageID
+				path += "?status_page_id=" + url.QueryEscape(pageID)
 			}
 			var resp struct {
 				Monitors []monitor `json:"monitors"`
@@ -98,7 +99,7 @@ func monitorsCmd() *cobra.Command {
 			resp.Monitors = raw
 			if outputJSON {
 				b, _ := json.MarshalIndent(resp.Monitors, "", "  ")
-				fmt.Println(string(b))
+				fmt.Print(sanitizeBody(b))
 				return nil
 			}
 			pages := pageNames(cl)
@@ -123,7 +124,7 @@ func monitorsCmd() *cobra.Command {
 				if n, ok := pages[m.StatusPageID]; ok {
 					page = n
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, m.Name, m.Type, colorStatus(m.Status), regions, page, m.Target)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, safe(m.Name), safe(m.Type), colorStatus(m.Status), safe(regions), safe(page), safe(m.Target))
 			}
 			return w.Flush()
 		},
@@ -175,7 +176,7 @@ func monitorsCmd() *cobra.Command {
 				return err
 			}
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -207,7 +208,7 @@ func monitorsCmd() *cobra.Command {
 					if err := cl.Delete("/monitors/" + m.ID + suffix); err != nil {
 						return err
 					}
-					fmt.Printf("%s monitor %q\n", past[verb], m.Name)
+					fmt.Printf("%s monitor %q\n", past[verb], safe(m.Name))
 					return nil
 				}
 				status := "pending"
@@ -215,10 +216,10 @@ func monitorsCmd() *cobra.Command {
 					status = "paused"
 				}
 				var resp any
-				if err := cl.Put("/monitors/"+m.ID, map[string]string{"status": status}, &resp); err != nil {
+				if err := cl.Put("/monitors/"+url.PathEscape(m.ID), map[string]string{"status": status}, &resp); err != nil {
 					return err
 				}
-				fmt.Printf("%s monitor %q\n", past[verb], m.Name)
+				fmt.Printf("%s monitor %q\n", past[verb], safe(m.Name))
 				return nil
 			},
 		}
@@ -242,18 +243,18 @@ func monitorsCmd() *cobra.Command {
 				return err
 			}
 			var detail map[string]any
-			if err := cl.Get("/monitors/"+match.ID, &detail); err != nil {
+			if err := cl.Get("/monitors/"+url.PathEscape(match.ID), &detail); err != nil {
 				return err
 			}
 			if outputJSON {
 				b, _ := json.MarshalIndent(detail, "", "  ")
-				fmt.Println(string(b))
+				fmt.Print(sanitizeBody(b))
 				return nil
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 			row := func(k string, v any) {
 				if v != nil && fmt.Sprint(v) != "" {
-					fmt.Fprintf(w, "%s\t%v\n", "\033[2m"+k+"\033[0m", v)
+					fmt.Fprintf(w, "%s\t%v\n", "\033[2m"+k+"\033[0m", safe(fmt.Sprint(v)))
 				}
 			}
 			row("id", detail["id"])
@@ -278,12 +279,15 @@ func monitorsCmd() *cobra.Command {
 					_ = n
 				}
 				for _, ch := range checks {
-					cm := ch.(map[string]any)
+					cm, ok := ch.(map[string]any)
+					if !ok {
+						continue
+					}
 					t, _ := cm["created_at"].(string)
 					if len(t) >= 19 {
 						t = t[11:19]
 					}
-					fmt.Fprintf(w, "%s\t%s\t%vms\t%v\n", t, colorStatus(fmt.Sprint(cm["status"])), cm["latency"], cm["message"])
+					fmt.Fprintf(w, "%s\t%s\t%vms\t%v\n", safe(t), colorStatus(fmt.Sprint(cm["status"])), cm["latency"], safe(fmt.Sprint(cm["message"])))
 				}
 				w.Flush()
 			}
@@ -320,10 +324,10 @@ func monitorsCmd() *cobra.Command {
 				return fmt.Errorf("nothing to update — pass --name, --target or --interval")
 			}
 			var resp any
-			if err := cl.Put("/monitors/"+m.ID, body, &resp); err != nil {
+			if err := cl.Put("/monitors/"+url.PathEscape(m.ID), body, &resp); err != nil {
 				return err
 			}
-			fmt.Printf("Updated monitor %q\n", m.Name)
+			fmt.Printf("Updated monitor %q\n", safe(m.Name))
 			return nil
 		},
 	}

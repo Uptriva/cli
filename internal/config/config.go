@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -28,7 +29,9 @@ func Load() (*Config, error) {
 	}
 	b, err := os.ReadFile(p)
 	if err == nil {
-		_ = yaml.Unmarshal(b, c)
+		if err := yaml.Unmarshal(b, c); err != nil {
+			return nil, fmt.Errorf("invalid config file %s: %w", p, err)
+		}
 	}
 	if t := os.Getenv("UPTRIVA_TOKEN"); t != "" {
 		c.Token = t
@@ -51,5 +54,8 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, b, 0o600)
+	if err := os.WriteFile(p, b, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(p, 0o600)
 }

@@ -60,8 +60,7 @@ network_device, snmp — availability depends on the account's plan tier.
 
 ## Scripted use
 
-- `apply -f config.yaml` is planned for declarative setup; until then use
-  loops over `monitors create`.
+- `apply -f config.yaml` does declarative create/update for all resources.
 - Example heartbeat flow: create a `heartbeat` monitor → read its
   `settings.heartbeat_token` via `monitors show <name> -o json` →
   `POST /heartbeat/<id>` with `Authorization: Bearer <token>` (or just

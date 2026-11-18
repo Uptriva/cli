@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/uptriva/cli/internal/config"
+	"golang.org/x/term"
 )
 
 func authCmd() *cobra.Command {
@@ -22,11 +23,20 @@ func authCmd() *cobra.Command {
 					token = t
 				} else {
 					fmt.Fprint(os.Stderr, "API token: ")
-					sc := bufio.NewScanner(os.Stdin)
-					if !sc.Scan() || strings.TrimSpace(sc.Text()) == "" {
-						return fmt.Errorf("no token provided")
+					if term.IsTerminal(int(os.Stdin.Fd())) {
+						b, err := term.ReadPassword(int(os.Stdin.Fd()))
+						fmt.Fprintln(os.Stderr)
+						if err != nil || strings.TrimSpace(string(b)) == "" {
+							return fmt.Errorf("no token provided")
+						}
+						token = strings.TrimSpace(string(b))
+					} else {
+						sc := bufio.NewScanner(os.Stdin)
+						if !sc.Scan() || strings.TrimSpace(sc.Text()) == "" {
+							return fmt.Errorf("no token provided")
+						}
+						token = strings.TrimSpace(sc.Text())
 					}
-					token = strings.TrimSpace(sc.Text())
 				}
 			}
 			cfg, _ := config.Load()
@@ -60,9 +70,9 @@ func authCmd() *cobra.Command {
 				fmt.Println("not authenticated")
 				return nil
 			}
-			masked := cfg.Token
-			if len(masked) > 12 {
-				masked = masked[:8] + "..." + masked[len(masked)-4:]
+			masked := fmt.Sprintf("<set, %d chars>", len(cfg.Token))
+			if len(cfg.Token) > 12 {
+				masked = cfg.Token[:4] + "…" + cfg.Token[len(cfg.Token)-2:]
 			}
 			fmt.Printf("endpoint: %s\ntoken: %s\n", cfg.BaseURL, masked)
 			return nil

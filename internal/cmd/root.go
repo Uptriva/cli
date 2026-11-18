@@ -30,7 +30,7 @@ func client() (*api.Client, error) {
 		return nil, err
 	}
 	if cfg.Token == "" {
-		return nil, fmt.Errorf("not logged in — run `uptriva auth login --token <token>` or set UPTRIVA_TOKEN")
+		return nil, fmt.Errorf("not logged in — run `uptriva auth login` or set UPTRIVA_TOKEN")
 	}
 	return api.New(cfg.BaseURL, cfg.Token), nil
 }

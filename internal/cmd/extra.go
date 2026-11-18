@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"text/tabwriter"
 
@@ -25,7 +26,7 @@ func webhooksCmd() *cobra.Command {
 			}
 			if outputJSON {
 				b, _ := json.MarshalIndent(raw, "", "  ")
-				fmt.Println(string(b))
+				fmt.Print(sanitizeBody(b))
 				return nil
 			}
 			if len(raw) == 0 {
@@ -43,7 +44,7 @@ func webhooksCmd() *cobra.Command {
 				if b, _ := wh["is_active"].(bool); b {
 					active = "yes"
 				}
-				fmt.Fprintf(w, "%s\t%v\t%v\t%v\t%s\n", id, wh["name"], wh["provider"], wh["url"], active)
+				fmt.Fprintf(w, "%s\t%v\t%v\t%v\t%s\n", id, safe(fmt.Sprint(wh["name"])), wh["provider"], safe(fmt.Sprint(wh["url"])), active)
 			}
 			return w.Flush()
 		},
@@ -70,7 +71,7 @@ func webhooksCmd() *cobra.Command {
 				return err
 			}
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -99,15 +100,14 @@ func webhooksCmd() *cobra.Command {
 				return err
 			}
 			var resp any
-			if err := cl.Post("/webhooks/"+args[0]+"/test", nil, &resp); err != nil {
+			if err := cl.Post("/webhooks/"+url.PathEscape(args[0])+"/test", nil, &resp); err != nil {
 				return err
 			}
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
 	c.AddCommand(list, create, del, test)
 	return c
 }
-

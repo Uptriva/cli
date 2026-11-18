@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"text/tabwriter"
 
@@ -11,7 +12,7 @@ import (
 
 func printJSON(v any) error {
 	b, _ := json.MarshalIndent(v, "", "  ")
-	fmt.Println(string(b))
+	fmt.Print(sanitizeBody(b))
 	return nil
 }
 
@@ -30,7 +31,7 @@ func slaCmd() *cobra.Command {
 				return fmt.Errorf("--status-page is required")
 			}
 			var resp map[string]any
-			if err := cl.Get("/status-pages/"+pageID+"/sla", &resp); err != nil {
+			if err := cl.Get("/status-pages/"+url.PathEscape(pageID)+"/sla", &resp); err != nil {
 				return err
 			}
 			if outputJSON {
@@ -63,7 +64,7 @@ func slaCmd() *cobra.Command {
 				return fmt.Errorf("--status-page is required")
 			}
 			var resp map[string]any
-			if err := cl.Get("/status-pages/"+pageID+"/sla-targets", &resp); err != nil {
+			if err := cl.Get("/status-pages/"+url.PathEscape(pageID)+"/sla-targets", &resp); err != nil {
 				return err
 			}
 			if outputJSON {
@@ -86,7 +87,7 @@ func heartbeatCmd() *cobra.Command {
 		Use:     "heartbeat <id|name>",
 		Short:   "Push a heartbeat ping to a heartbeat monitor",
 		Args:    cobra.ExactArgs(1),
-		Example: "  uptriva heartbeat \"Pinger Falkenstein\"",
+		Example: "  uptriva heartbeat \"my-cron-job\"",
 		RunE: func(c *cobra.Command, args []string) error {
 			cl, err := client()
 			if err != nil {
@@ -97,7 +98,7 @@ func heartbeatCmd() *cobra.Command {
 				return err
 			}
 			var detail map[string]any
-			if err := cl.Get("/monitors/"+m.ID, &detail); err != nil {
+			if err := cl.Get("/monitors/"+url.PathEscape(m.ID), &detail); err != nil {
 				return err
 			}
 			var token string
@@ -114,7 +115,7 @@ func heartbeatCmd() *cobra.Command {
 				return fmt.Errorf("monitor %q has no heartbeat token — is it a heartbeat monitor?", m.Name)
 			}
 			var resp any
-			if err := cl.PostPublic("/heartbeat/"+m.ID, "Bearer "+token, &resp); err != nil {
+			if err := cl.PostPublic("/heartbeat/"+url.PathEscape(m.ID), "Bearer "+token, &resp); err != nil {
 				return err
 			}
 			fmt.Printf("Heartbeat sent for %q\n", m.Name)
@@ -203,7 +204,7 @@ func agentEventsCmd() *cobra.Command {
 					return err
 				}
 				var resp any
-				if err := cl.Post("/agent-events/"+args[0]+"/"+verb, nil, &resp); err != nil {
+				if err := cl.Post("/agent-events/"+url.PathEscape(args[0])+"/"+verb, nil, &resp); err != nil {
 					return err
 				}
 				fmt.Printf("%sd event %s\n", verb, args[0])

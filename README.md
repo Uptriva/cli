@@ -34,7 +34,7 @@ uptriva monitors pause|resume|delete Website
 uptriva monitors update Website --interval 60
 
 uptriva watch                              live status view, refreshes every 10s
-uptriva heartbeat "Pinger Falkenstein"     push a heartbeat ping
+uptriva heartbeat "my-cron-job"     push a heartbeat ping
 
 uptriva status-pages list|show|create|delete
 uptriva incidents list|create|ack|resolve|update|publish

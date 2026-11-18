@@ -6,13 +6,27 @@ builds:
     binary: uptriva
     goos: ["linux", "darwin", "windows"]
     goarch: ["amd64", "arm64"]
+    flags:
+      - -trimpath
     ldflags:
       - "-s -w -X main.version={{.Version}}"
 archives:
-  - format: tar.gz
+  - formats: ["tar.gz"]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: ["zip"]
+sboms:
+  - artifacts: archive
+signs:
+  - cmd: cosign
+    args:
+      - sign-blob
+      - --bundle
+      - "${artifact}.sigstore.json"
+      - --output-signature
+      - "${artifact}.sig"
+      - "${artifact}"
+    artifacts: checksum
 release:
   github:
     owner: uptriva

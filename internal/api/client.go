@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -15,11 +18,40 @@ type Client struct {
 	http    *http.Client
 }
 
+const maxBodyBytes = 32 << 20
+
 func New(baseURL, token string) *Client {
 	return &Client{BaseURL: baseURL, Token: token, http: &http.Client{Timeout: 30 * time.Second}}
 }
 
+func (c *Client) checkScheme() error {
+	u, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return fmt.Errorf("invalid base URL: %w", err)
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	host := u.Hostname()
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" || os.Getenv("UPTRIVA_INSECURE_HTTP") != "" {
+		return nil
+	}
+	return fmt.Errorf("refusing insecure base URL %q — credentials would travel in cleartext (set UPTRIVA_INSECURE_HTTP=1 to override)", c.BaseURL)
+}
+
+func sanitizeError(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, s)
+}
+
 func (c *Client) do(method, path string, body any) ([]byte, error) {
+	if err := c.checkScheme(); err != nil {
+		return nil, err
+	}
 	var rdr io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -43,14 +75,16 @@ func (c *Client) do(method, path string, body any) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
+	b, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		var e struct{ Error string `json:"error"` }
+		var e struct {
+			Error string `json:"error"`
+		}
 		if json.Unmarshal(b, &e) == nil && e.Error != "" {
-			return nil, fmt.Errorf("API %d: %s", resp.StatusCode, e.Error)
+			return nil, fmt.Errorf("API %d: %s", resp.StatusCode, sanitizeError(e.Error))
 		}
 		return nil, fmt.Errorf("API %d", resp.StatusCode)
 	}
@@ -58,6 +92,9 @@ func (c *Client) do(method, path string, body any) ([]byte, error) {
 }
 
 func (c *Client) PostPublic(path string, authHeader string, out any) error {
+	if err := c.checkScheme(); err != nil {
+		return err
+	}
 	rdr := bytes.NewReader([]byte("{}"))
 	req, err := http.NewRequest("POST", c.BaseURL+path, rdr)
 	if err != nil {
@@ -72,9 +109,15 @@ func (c *Client) PostPublic(path string, authHeader string, out any) error {
 		return err
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("API %d: %s", resp.StatusCode, string(respBody))
+		var e struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(respBody, &e) == nil && e.Error != "" {
+			return fmt.Errorf("API %d: %s", resp.StatusCode, sanitizeError(e.Error))
+		}
+		return fmt.Errorf("API %d", resp.StatusCode)
 	}
 	if out != nil && len(respBody) > 0 {
 		return json.Unmarshal(respBody, out)

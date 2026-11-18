@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -21,18 +22,18 @@ func agentsCmd() *cobra.Command {
 				return err
 			}
 			var raw []struct {
-				ID      string `json:"id"`
-				Name    string `json:"name"`
+				ID       string `json:"id"`
+				Name     string `json:"name"`
 				Hostname string `json:"hostname"`
-				Status  string `json:"status"`
-				Version string `json:"version"`
+				Status   string `json:"status"`
+				Version  string `json:"version"`
 			}
 			if err := cl.Get("/agents", &raw); err != nil {
 				return err
 			}
 			if outputJSON {
 				b, _ := json.MarshalIndent(raw, "", "  ")
-				fmt.Println(string(b))
+				fmt.Print(sanitizeBody(b))
 				return nil
 			}
 			if len(raw) == 0 {
@@ -46,7 +47,7 @@ func agentsCmd() *cobra.Command {
 				if len(id) > 8 {
 					id = id[:8]
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", id, a.Name, a.Hostname, a.Status, a.Version)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", id, safe(a.Name), safe(a.Hostname), safe(a.Status), safe(a.Version))
 			}
 			return w.Flush()
 		},
@@ -65,7 +66,7 @@ func agentsCmd() *cobra.Command {
 				return err
 			}
 			b, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(b))
+			fmt.Print(sanitizeBody(b))
 			return nil
 		},
 	}
@@ -77,8 +78,8 @@ func agentsCmd() *cobra.Command {
 func watchCmd() *cobra.Command {
 	var wPage string
 	c := &cobra.Command{
-		Use:   "watch",
-		Short: "Live monitor status (refreshes every 10s, Ctrl+C to exit)",
+		Use:     "watch",
+		Short:   "Live monitor status (refreshes every 10s, Ctrl+C to exit)",
 		Example: "  uptriva watch\n  uptriva watch --status-page uptriva",
 		RunE: func(c *cobra.Command, args []string) error {
 			cl, err := client()
@@ -109,7 +110,7 @@ func watchCmd() *cobra.Command {
 				var raw []monitor
 				path := "/monitors"
 				if pageID != "" {
-					path += "?status_page_id=" + pageID
+					path += "?status_page_id=" + url.QueryEscape(pageID)
 				}
 				if err := cl.Get(path, &raw); err != nil {
 					return err
@@ -132,7 +133,7 @@ func watchCmd() *cobra.Command {
 				}
 				title := "uptriva watch"
 				if pageName != "" {
-					title += " — " + pageName
+					title += " — " + safe(pageName)
 				}
 				fmt.Printf("%s — %s (refresh 10s, ctrl+c quit)\n\n", title, time.Now().Format("15:04:05"))
 				w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
@@ -150,7 +151,7 @@ func watchCmd() *cobra.Command {
 					if l > 0 {
 						lat = fmt.Sprintf("%.0fms", l)
 					}
-					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", id, colorStatus(m.Status), lat, m.Name, m.Target)
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", id, colorStatus(m.Status), safe(lat), safe(m.Name), safe(m.Target))
 				}
 				w.Flush()
 				fmt.Printf("\n\033[32m%d up\033[0m, \033[31m%d down\033[0m, \033[90m%d paused\033[0m", up, down, paused)

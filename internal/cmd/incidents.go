@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"text/tabwriter"
 
@@ -35,7 +36,7 @@ func incidentsCmd() *cobra.Command {
 			}
 			if outputJSON {
 				b, _ := json.MarshalIndent(resp, "", "  ")
-				fmt.Println(string(b))
+				fmt.Print(sanitizeBody(b))
 				return nil
 			}
 			if len(resp) == 0 {
@@ -49,7 +50,7 @@ func incidentsCmd() *cobra.Command {
 				if len(id) > 8 {
 					id = id[:8]
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", id, i.Title, i.Severity, i.Status)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", id, safe(i.Title), safe(i.Severity), safe(i.Status))
 			}
 			return w.Flush()
 		},
@@ -65,7 +66,7 @@ func incidentsCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return cl.Post("/incidents/"+args[0]+"/"+verb, nil, nil)
+				return cl.Post("/incidents/"+url.PathEscape(args[0])+"/"+verb, nil, nil)
 			},
 		}
 	}
@@ -86,10 +87,10 @@ func incidentsCmd() *cobra.Command {
 				return fmt.Errorf("--title is required")
 			}
 			var resp any
-			if err := cl.Post("/status-pages/"+iPage+"/incidents", map[string]any{"title": iTitle, "severity": iSeverity}, &resp); err != nil {
+			if err := cl.Post("/status-pages/"+url.PathEscape(iPage)+"/incidents", map[string]any{"title": iTitle, "severity": iSeverity}, &resp); err != nil {
 				return err
 			}
-			fmt.Printf("Created incident %q\n", iTitle)
+			fmt.Printf("Created incident %q\n", safe(iTitle))
 			_ = resp
 			return nil
 		},
@@ -111,7 +112,7 @@ func incidentsCmd() *cobra.Command {
 				return fmt.Errorf("--message is required")
 			}
 			var resp any
-			if err := cl.Post("/incidents/"+args[0]+"/updates", map[string]any{"message": uMsg}, &resp); err != nil {
+			if err := cl.Post("/incidents/"+url.PathEscape(args[0])+"/updates", map[string]any{"message": uMsg}, &resp); err != nil {
 				return err
 			}
 			fmt.Println("Update posted.")
